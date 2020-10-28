@@ -40,11 +40,12 @@ double testGdensity(
 }
 
 
+/*
 template<typename indtype, typename valtype>
 void update1G(G<indtype, valtype> &gaussian, valtype &diffS, // valtype eps,
               indtype d, indtype Xsize, valtype *X,
               const valtype *pointWeight, valtype *rowSum, valtype *errorS,
-              valtype *buffer)
+              valtype *buffer, bool updateAlpha = true)
   // buffer is a temporary container of size Xsize + d * (d + 1) / 2 + d
 {
   indtype triMatSize = std::size_t(d) * (d + 1) / 2;
@@ -60,7 +61,8 @@ void update1G(G<indtype, valtype> &gaussian, valtype &diffS, // valtype eps,
   }
 
 
-  valtype alphaNew = sumW / Xsize;
+  valtype alphaNew = gaussian.alpha;
+  if(updateAlpha) alphaNew = sumW / Xsize;
 
 
   diffS = 0;
@@ -135,6 +137,105 @@ void update1G(G<indtype, valtype> &gaussian, valtype &diffS, // valtype eps,
   valtype *&cholPrevous = Sigma; // Now Sigma stores the old covariance matrix (upper tri)
   diffS += relaErrSum(&gaussian.cholU[0], cholPrevous, triMatSize);
 }
+*/
+
+
+template<typename indtype, typename valtype>
+void update1G(G<indtype, valtype> &gaussian, valtype &diffS, // valtype eps,
+              indtype d, indtype Xsize,
+              valtype *X, const valtype *pointWeight,
+              valtype *rowSum, valtype *errorS, valtype *buffer)
+  // buffer is a temporary container of size Xsize + d * (d + 1) / 2 + d
+{
+  indtype triMatSize = std::size_t(d) * (d + 1) / 2;
+  valtype *&W = buffer; // The first Xsize elements of buffer stores weights
+  valtype sumW = 0;
+  for(indtype i = 0; i < Xsize; ++i)
+  {
+    W[i] = 0;
+    if(rowSum[i] > 0) W[i] = gaussian.ptr[i] / rowSum[i];
+    W[i] *= pointWeight[i]; // Branch prediction will optimize this away
+    sumW += W[i];
+  }
+
+
+  diffS = 0;
+  // std::cout << "gaussian.updateAlpha = " + std::to_string(gaussian.updateAlpha) + ", ";
+  if(gaussian.updateAlpha)
+  {
+    valtype alphaNew = sumW / Xsize;
+    // Rcout << "alphaNew = " << alphaNew << ", ";
+    diffS += relaErr<valtype> (alphaNew, gaussian.alpha);
+    gaussian.alpha = alphaNew;
+  }
+
+
+  if(gaussian.updateMean or gaussian.updateSigma)
+  {
+    for(indtype i = 0; i < Xsize; ++i) W[i] /= sumW;
+  }
+
+
+  // Update mean
+  valtype *mean = &gaussian.mu.front();
+  if(gaussian.updateMean)
+  {
+    valtype *oldmu = buffer + Xsize; // buffer[Xsize] -> buffer[Xsize + d] stores the old mean
+    std::copy(gaussian.mu.begin(), gaussian.mu.end(), oldmu);
+    std::fill(mean, mean + d, 0);
+    for(indtype i = 0; i < Xsize; ++i)
+    {
+      valtype *val= X + i * d;
+      for(indtype j = 0; j < d; ++j)
+      {
+        mean[j] += W[i] * val[j];
+      }
+    }
+    // Relative difference
+    diffS += relaErrSum(mean, oldmu, d);
+  }
+
+
+  if(gaussian.updateSigma)
+  {
+    valtype *Sigma = buffer + Xsize; // buffer[Xsize] -> buffer[Xsize + triMatSize]
+    // Stores the new covariance (upper tri)
+    std::fill(Sigma, Sigma + triMatSize, 0);
+    // Update sigma
+    valtype *x_mu = Sigma + triMatSize; // buffer[Xsize + triMatSize] stores x - mu, temporary
+    for(indtype i = 0; i < Xsize; ++i)
+    {
+      valtype *val = X + i * d;
+      for(indtype t = 0; t < d; ++t) x_mu[t] = val[t] - mean[t];
+      valtype *s = Sigma;
+      for(indtype p = 0; p < d; ++p)
+      {
+        for(indtype q = 0; q <= p; ++q) // upper triangle
+        {
+          *s += x_mu[p] * x_mu[q] * W[i];
+          ++s;
+        }
+      }
+    }
+    bool b = gaussian.computeCholUandSqrtOfDet(Sigma);
+    // After this function, Sigma contains the old covariance matrix
+    if(!b)
+    {
+      gaussian.alpha = 0;
+      diffS += triMatSize;
+      return;
+    }
+    // Relative difference
+    valtype *&cholPrevous = Sigma; // Now Sigma stores the old covariance matrix (upper tri)
+    diffS += relaErrSum(&gaussian.cholU[0], cholPrevous, triMatSize);
+  }
+
+
+}
+
+
+
+
 
 
 template<typename indtype, typename valtype>
@@ -146,6 +247,7 @@ struct updateParaConventional: public Worker
   G<indtype, valtype> *gmodel;
   valtype *errorS;
   vec<valtype> *tmpCntr;
+  bool updateAlpha;
   dynamicTasking *dT;
 
 
@@ -155,11 +257,9 @@ struct updateParaConventional: public Worker
     {
       std::size_t objI = 0;
       if(!dT->nextTaskID(objI)) break;
-      {
-        update1G(gmodel[objI], errorS[objI], // eps,
-                 d, Xsize, X, pointWeight,
-                 rowSum, errorS, &tmpCntr[st][0]);
-      }
+      update1G(gmodel[objI], errorS[objI], // eps,
+               d, Xsize, X, pointWeight,
+               rowSum, errorS, &tmpCntr[st][0]);
     }
   }
 
@@ -171,9 +271,10 @@ struct updateParaConventional: public Worker
     valtype *X,
     valtype *pointWeight,
     valtype *rowSum,
-    G<indtype, valtype> *gmodel, valtype *errorS, indtype NofCPU):
+    G<indtype, valtype> *gmodel, valtype *errorS, indtype NofCPU, bool updateAlpha):
     d(d), Xsize(Xsize), gmodelSize(gmodelSize), // eps(eps),
-    X(X), pointWeight(pointWeight), rowSum(rowSum), gmodel(gmodel), errorS(errorS)
+    X(X), pointWeight(pointWeight), rowSum(rowSum), gmodel(gmodel), errorS(errorS),
+    updateAlpha(updateAlpha)
   {
     dynamicTasking dt(NofCPU, gmodelSize); dT = &dt;
     vec<vec<valtype> > tmp(NofCPU, vec<valtype> (
@@ -220,7 +321,13 @@ List paraGmmFullinit(
     double eps,
     double annihilationEPS,
     double tlimit,
-    int verbose)
+    int verbose,
+    LogicalVector updateAlpha,
+    LogicalVector updateMean,
+    LogicalVector updateSigma,
+    bool paraConvergeMaxErr,
+    bool loglikehoodConverge,
+    int loglikehoodConvergeBlock)
 {
   int d = dat.nrow();
   int Xsize = dat.ncol();
@@ -236,9 +343,15 @@ List paraGmmFullinit(
     double *sigmaptr = &*sigma.begin();
     for(int i = 0, iend = Gvec.size(); i < iend; ++i, muptr += d, sigmaptr += d * d)
     {
+      Gvec[i].updateAlpha = updateAlpha[i];
+      // Rcout << "initialization: Gvec[i].updateAlpha = " << Gvec[i].updateAlpha << "\n";
+      Gvec[i].updateMean = updateMean[i];
+      Gvec[i].updateSigma = updateSigma[i];
+
+
       Gvec[i].alpha = alpha[i];
       Gvec[i].mu.assign(muptr, muptr + d);
-      // extract tri-sigma, perform cholesky decomposition
+      // Extract tri-sigma, perform cholesky decomposition
       {
         Gvec[i].cholU.resize(std::size_t(d) * (d + 1) / 2);
         fullSigmaToTriSigma(sigmaptr, &Gvec[i].cholU[0], d);
@@ -247,11 +360,11 @@ List paraGmmFullinit(
     }
 
 
-    // annihilate if alpha < annihilationEPS
+    // Annihilate if alpha < annihilationEPS
     annihilateGinVec(Gvec, annihilationEPS);
 
 
-    // density container initialization
+    // Density container initialization
     for(int i = 0, iend = Gvec.size(); i < iend; ++i)
       Gvec[i].ptr.resize(Xsize);
   }
@@ -265,6 +378,8 @@ List paraGmmFullinit(
     double endTime = std::clock() + Nthreads * tlimit * CLOCKS_PER_SEC;
     vec<double> auxCntr;
     vec<double> errorS;
+    double previousLL = -1e300;
+    int NllunderEps = 0; // The last `NllunderEps` iterations resulted in loglikelihood less than `eps`.
     for(int iter = 0, iterEnd = maxit; iter < iterEnd; ++iter)
     {
       int GvecSize = Gvec.size();
@@ -276,7 +391,7 @@ List paraGmmFullinit(
       int totalParameters = GvecSize * gaussianParaN;
       updateParaConventional<int, double> (
           d, Xsize, GvecSize, // eps,
-          X, xw, &rowSum[0], &Gvec.front(), &errorS.front(), Nthreads);
+          X, xw, &rowSum[0], &Gvec.front(), &errorS.front(), Nthreads, updateAlpha);
 
 
       annihilateGinVec(Gvec, annihilationEPS); // Erase components that have small weights.
@@ -291,7 +406,19 @@ List paraGmmFullinit(
       double avgRelativeErr = 0;
       if(totalParametersAfterCleansing == totalParameters)
       {
-        avgRelativeErr = std::accumulate(errorS.begin(), errorS.end(), 0.0) / totalParameters;
+        if(!loglikehoodConverge)
+        {
+          if(paraConvergeMaxErr) avgRelativeErr = *std::max_element(errorS.begin(), errorS.end());
+          else avgRelativeErr = std::accumulate(errorS.begin(), errorS.end(), 0.0) / totalParameters;
+        }
+        else
+        {
+          double ll = 0;
+          for(int i = 0, iend = rowSum.size(); i < iend; ++i) ll += std::log(rowSum[i]);
+          if(ll < (((previousLL > 0) * 2 - 1) * eps + 1) * previousLL) ++NllunderEps;
+          else NllunderEps = 0;
+          previousLL = ll;
+        }
       }
       else
       {
@@ -299,23 +426,44 @@ List paraGmmFullinit(
           Rcout << "Eigenvalue ratios exceed or component weights fall below thresholds, " <<
             "Gaussian components annihilated.\n";
         avgRelativeErr = eps * 2;
+        NllunderEps = 0;
       }
 
 
-      if(avgRelativeErr < eps or double(std::clock()) > endTime) break;
+      if(!loglikehoodConverge)
+      {
+        if(avgRelativeErr < eps or double(std::clock()) > endTime) break;
+      }
+      else
+      {
+        if(NllunderEps >= loglikehoodConvergeBlock or double(std::clock()) > endTime) break;
+      }
 
 
       // if(verbose != 0 and (iter + 1) % verbose == 0)
       if(verbose != 0)
       {
-        Rcout << "iteration = " << iter + 1 << ", mean absolute relative change in parameters = " <<
-          avgRelativeErr << ", number of remaining kernels = " << Gvec.size() << "\n";
+        if(!loglikehoodConverge)
+        {
+          std::string meanMax = "";
+          if(paraConvergeMaxErr) meanMax += ", max absolute relative change in parameters = ";
+          else meanMax += ", mean absolute relative change in parameters = ";
+          Rcout << "iteration = " << iter + 1 << meanMax << avgRelativeErr <<
+              ", number of remaining kernels = " << Gvec.size() << "\n";
+        }
+        else
+        {
+          Rcout << "iteration = " << iter + 1 << ", log-likelihood = " << previousLL <<
+            ", each of the last " << NllunderEps << " iterations yielded less than " <<
+              eps * 100 << "% increase in log-likelihood\n";
+        }
       }
     }
   }
 
 
   // out
+  if(true)
   {
     NumericVector w(Gvec.size());
     NumericMatrix mu(d, Gvec.size()), sigma(d * d, Gvec.size());
@@ -345,6 +493,23 @@ List paraGmmFullinit(
     }
 
 
+    // if(!updateAlpha and mu.size() < alpha.size())
+    // {
+    //   std::fill(w.begin(), w.end(), 1.0 / mu.size());
+    //   double r = (mu.size() + 0.0) / alpha.size();
+    //   for(int i = 0, iend = rowSum.size(); i < iend; ++i) rowSum[i] *= r;
+    // }
+    // Compute rowSum and w.
+    if(true)
+    {
+      for(int i = 0, iend = w.size(); i < iend; ++i) w[i] = Gvec[i].alpha;
+      // for(int i = 0, iend = w.size(); i < iend; ++i) Rcout << Gvec[i].alpha << ", ";
+      double r = 1.0 / std::accumulate(w.begin(), w.end(), 0.0);
+      for(int i = 0, iend = w.size(); i < iend; ++i) w[i] *= r;
+      for(int i = 0, iend = rowSum.size(); i < iend; ++i) rowSum[i] *= r;
+    }
+
+
     return List::create(Named("alpha") = w, Named("mu") = mu,
                         Named("sigma") = sigma, Named("fitted") = rowSum,
                         Named("clusterMember") = clust);
@@ -369,7 +534,13 @@ List paraGmm(
     int maxIter,
     double tlimit,
     int verbose,
-    int maxCore
+    int maxCore,
+    LogicalVector updateAlpha,
+    LogicalVector updateMean,
+    LogicalVector updateSigma,
+    bool paraConvergeMaxErr,
+    bool loglikehoodConverge,
+    int loglikehoodConvergeBlock
   )
 {
   if(alpha.size() == 0)
@@ -412,9 +583,43 @@ List paraGmm(
   }
 
 
-  return paraGmmFullinit(X, alpha, mu, sigma, Xw, maxCore, maxIter,
-                         eigenRatioLim, convergenceEPS,
-                         alphaEPS, tlimit, verbose);
+
+
+  LogicalVector alltrue(alpha.size()), allfalse(alpha.size());
+  for(int i = 0, iend = alltrue.size(); i < iend; ++i)
+  {
+    alltrue[i] = true;
+    allfalse[i] = false;
+  }
+
+
+  vec<unsigned char> updateAlpha_, updateMean_, updateSigma_;
+  if(updateAlpha.size() == 1)
+  {
+    if(updateAlpha[0]) updateAlpha = alltrue;
+    else updateAlpha = allfalse;
+  }
+
+
+  if(updateMean.size() == 1)
+  {
+    if(updateMean[0]) updateMean = alltrue;
+    else updateMean = allfalse;
+  }
+
+
+  if(updateSigma.size() == 1)
+  {
+    if(updateSigma[0]) updateSigma = alltrue;
+    else updateSigma = allfalse;
+  }
+
+
+  return paraGmmFullinit(
+    X, alpha, mu, sigma, Xw, maxCore, maxIter,
+    eigenRatioLim, convergenceEPS, alphaEPS, tlimit, verbose,
+    updateAlpha, updateMean, updateSigma,
+    paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock);
 }
 
 

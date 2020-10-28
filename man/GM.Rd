@@ -21,7 +21,13 @@ GM(
   maxIter = 1000L,
   maxCore = 7L,
   tlimit = 3600,
-  verbose = TRUE
+  verbose = TRUE,
+  updateAlpha = TRUE,
+  updateMean = TRUE,
+  updateSigma = TRUE,
+  paraConvergeMaxErr = FALSE,
+  loglikehoodConverge = FALSE,
+  loglikehoodConvergeBlock = 10
   )
 }
 %- maybe also 'usage' for other objects documented here.
@@ -65,6 +71,25 @@ A numeric value. The program exits with the current model in \code{tlimit} secon
   \item{verbose}{
 A boolean value. \code{TRUE} prints progress.
 }
+  \item{updateAlpha}{
+A boolean value or boolean vector. If a boolean value, \code{TRUE} implies weights on all mixture components are subject to update, otherwise they should stay unchanged during training. If a boolean vector, its size should equal the number of mixture components. \code{updateAlpha[i] == TRUE} implies the weight on the \code{i}th component is subject to update. Regardless of \code{updateAlpha}, the output will have normalized mixture weights.
+}
+  \item{updateMean}{
+A boolean value or a boolean vector. If a boolean value, \code{TRUE} implies means of all mixture components are subject to update, otherwise they should stay unchanged during training. If a boolean vector, its size should equal the number of mixture components. \code{updateMean[i] == TRUE} implies the mean of the \code{i}th component is subject to update.
+}
+  \item{updateSigma}{
+A boolean value or a boolean vector. If a boolean value, \code{TRUE} implies covariances of all mixture components are subject to update, otherwise they should stay unchanged during training. If a boolean vector, its size should equal the number of mixture components. \code{updateSigma[i] == TRUE} implies the covariance of the \code{i}th component is subject to update.
+}
+  \item{paraConvergeMaxErr}{
+A boolean value. \code{TRUE} checks if the maximal absolute relative change of all parameters falls below \code{convergenceEPS}, and if so, stop training. Otherwise the program checks the average absolute relative change.
+}
+  \item{loglikehoodConverge}{
+A boolean value. \code{TRUE} changes the convergence criterion to log-likelihood: if the log-likelihood's absolute relative changes in the last \code{loglikehoodConvergeBlock} iterations are all below \code{convergenceEPS}, stop training.
+}
+  \item{loglikehoodConvergeBlock}{
+An integer. Explained in \code{loglikehoodConverge}.
+}
+
 }
 \details{
 An in-place Cholesky decomposition of covariance matrix is implemented for space and speed efficiency. Only the upper triangle of the Cholesky decomposition is memorized for each Gaussian kernel, and it is then applied to a forward substitution routine for fast computing Mahalanobis distances. Each of the three main steps in an iteration --- Gaussian density computation, parameter inference, parameter update --- is multithreaded and hand-scheduled using Intel TBB. Extensive efforts have been made over cache-friendliness and extra multithreading overheads such as memory allocation.
@@ -183,6 +208,35 @@ plot3D::points3D(x = sampledPoints[1, ],
                  y = sampledPoints[2, ],
                  z = sampledPoints[3, ], pch = 20)
 par(mfrow = oldpar)
+
+
+
+
+# =============================================================================
+# For fun, fit a 3D spiral distribution. Fix parameters at random.
+# =============================================================================
+N = 2000
+t = runif(N) ^ 2 * 15
+x = cos(t) + rnorm(N) * 0.1
+y = sin(t) + rnorm(N) * 0.1
+z = t + rnorm(N) * 0.1
+
+
+X = rbind(x, y, z); dimnames(X) = NULL
+d = 3L
+G = 10L
+mu = X[, sample(ncol(X), G)]
+s = matrix(rep(as.numeric(cov(t(X))), G), ncol = G)
+alpha = rep(1 / G, G)
+updateAlpha = sample(c(TRUE, FALSE), G, replace = TRUE)
+updateMean = sample(c(TRUE, FALSE), G, replace = TRUE)
+updateSigma = sample(c(TRUE, FALSE), G, replace = TRUE)
+gmmFit = GMKMcharlie::GM(X, alpha = alpha, mu = mu, sigma = s, G = G,
+                         maxCore = 2, verbose = FALSE,
+                         updateAlpha = updateAlpha,
+                         updateMean = updateMean,
+                         updateSigma = updateSigma,
+                         convergenceEPS = 1e-5, alphaEPS = 1e-8)
 }
 
 

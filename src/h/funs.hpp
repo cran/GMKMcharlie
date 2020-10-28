@@ -265,6 +265,9 @@ inline void shallowCopy(vec<G<indtype, valtype> > &x, vec<G<indtype, valtype> > 
 template<typename indtype, typename valtype>
 inline void swapG(G<indtype, valtype> &x, G<indtype, valtype> &y)
 {
+  std::swap(x.updateAlpha, y.updateAlpha);
+  std::swap(x.updateMean, y.updateMean);
+  std::swap(x.updateSigma, y.updateSigma);
   std::swap(x.alpha, y.alpha);
   std::swap(x.sqrtOfDet, y.sqrtOfDet);
   std::swap(x.mu, y.mu);
@@ -303,9 +306,7 @@ inline void eraseComponent(vec<G<indtype, valtype> > &gv, indtype I)
   vec<valtype>(0).swap(gv[I].cholU);
   vec<valtype>(0).swap(gv[I].ptr);
   for(indtype i = I, iend = gv.size() - 1; i < iend; ++i)
-  {
     swapG(gv[i], gv[i + 1]);
-  }
   gv.resize(gv.size() - 1);
 }
 

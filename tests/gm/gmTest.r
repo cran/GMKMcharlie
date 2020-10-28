@@ -73,7 +73,7 @@ gmmFit = GMKMcharlie::GM(X, G = G, maxCore = 2L, verbose = FALSE)
 # Sample N points from the Gaussian mixture.
 ns = as.integer(round(N * gmmFit$alpha))
 sampledPoints = list()
-for(i in 1L : G)
+for(i in 1L:G)
 {
   sampledPoints[[i]] = MASS::mvrnorm(
     ns[i], mu = gmmFit$mu[, i], Sigma = matrix(gmmFit$sigma[, i], nrow = d))
@@ -92,8 +92,49 @@ plot3D::points3D(x = sampledPoints[1, ],
 
 
 
+# =============================================================================
+# For fun, fit a 3D spiral distribution, fix means.
+# =============================================================================
+N = 2000
+t = runif(N) ^ 2 * 15
+x = cos(t) + rnorm(N) * 0.1
+y = sin(t) + rnorm(N) * 0.1
+z = t + rnorm(N) * 0.1
 
 
+X = rbind(x, y, z); dimnames(X) = NULL
+d = 3L
+G = 10L
+mu = X[, sample(ncol(X), G)]
+s = matrix(rep(as.numeric(cov(t(X))), G), ncol = G)
+alpha = rep(1 / G, G)
+updateAlpha = sample(c(TRUE, FALSE), G, replace = TRUE)
+updateMean = sample(c(TRUE, FALSE), G, replace = TRUE)
+updateSigma = sample(c(TRUE, FALSE), G, replace = TRUE)
+gmmFit = GMKMcharlie::GM(X, alpha = alpha, mu = mu, sigma = s, G = G,
+                         maxCore = 2, verbose = FALSE,
+                         updateAlpha = updateAlpha,
+                         updateMean = updateMean,
+                         updateSigma = updateSigma,
+                         convergenceEPS = 1e-5, alphaEPS = 1e-8)
+# Sample N points from the Gaussian mixture.
+ns = as.integer(round(N * gmmFit$alpha))
+sampledPoints = list()
+for(i in 1L:length(gmmFit$alpha))
+{
+  sampledPoints[[i]] = MASS::mvrnorm(
+    ns[i], mu = gmmFit$mu[, i], Sigma = matrix(gmmFit$sigma[, i], nrow = d))
+}
+sampledPoints =
+  matrix(unlist(lapply(sampledPoints, function(x) t(x))), nrow = d)
+
+
+# Plot the original data and the samples from the mixture model.
+par(mfrow = c(1, 2))
+plot3D::points3D(x, y, z, pch = 20)
+plot3D::points3D(x = sampledPoints[1, ],
+                 y = sampledPoints[2, ],
+                 z = sampledPoints[3, ], pch = 20)
 
 
 

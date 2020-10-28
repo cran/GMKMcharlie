@@ -393,7 +393,7 @@ List KMcpp(
 
 
   // p is an integer and 3 <= p <= 35.
-  if(std::abs(int(minkP) / minkP - 1) < 1e-10 and minkP >= 3 and minkP <= 35)
+  if(minkP >= 3 and minkP <= 35 and std::abs(int(minkP) / minkP - 1) < 1e-10)
     return KMcppTemplate<3> (X, centroid, Xw, minkP, maxCore, maxIter, verbose);
 
 

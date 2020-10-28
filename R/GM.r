@@ -15,7 +15,14 @@ GM <- function(
   maxIter = 1000L,
   maxCore = 7L,
   tlimit = 3600,
-  verbose = TRUE)
+  verbose = TRUE,
+  updateAlpha = TRUE,
+  updateMean = TRUE,
+  updateSigma = TRUE,
+  paraConvergeMaxErr = FALSE,
+  loglikehoodConverge = FALSE,
+  loglikehoodConvergeBlock = 10
+  )
 {
   if(!is.finite(eigenRatioLim)) eigenRatioLim = 0;
   rst = paraGmm(
@@ -31,7 +38,13 @@ GM <- function(
     maxIter,
     tlimit,
     verbose,
-    maxCore
+    maxCore,
+    updateAlpha,
+    updateMean,
+    updateSigma,
+    paraConvergeMaxErr,
+    loglikehoodConverge,
+    loglikehoodConvergeBlock
   )
   rst$clusterMember = aggregate(list(1L : ncol(X)), list(rst$clusterMember), function(x) x)[[2]]
   rst

@@ -58,7 +58,7 @@ A list of size \code{K}, the number of clusters. Each element is a list of 3 vec
 Empty \code{clusterMember} implies empty cluster.
 }
 \note{
-Divergence of the algorithm might but rarely happens when the distance measure is not Euclidean (\code{minkP = 2}).
+Although rarely happens, divergence of K-means with non-Euclidean distance \code{minkP != 2} measure is still a theoretical possibility.
 }
 
 \examples{

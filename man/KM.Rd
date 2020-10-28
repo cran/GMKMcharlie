@@ -52,7 +52,7 @@ Implementation highlights include:
 
 (iv) Function allows non-uniform weights on observations.
 
-(v) Meta-template programming trims branches over different distance functions and other computing methods at compile time.
+(v) Meta-template programming trims branches over different distance functions and other computing methods during compile time.
 }
 
 
@@ -67,7 +67,7 @@ Empty \code{clusterMember} implies empty cluster.
 
 
 \note{
-Divergence of the algorithm might but rarely happen when the distance measure is not Euclidean (\code{minkP = 2}).
+Although rarely happens, divergence of K-means with non-Euclidean distance \code{minkP != 2} measure is still a theoretical possibility.
 }
 
 

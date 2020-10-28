@@ -238,7 +238,7 @@ IntegerVector KMppIniCpp(
     double seed, int maxCore, bool verbose)
 {
   std::size_t sed;
-  std::memcpy(&sed, &seed, sizeof(seed));
+  std::memcpy(&sed, &seed, sizeof(sed));
   int N = X.ncol();
   int d = X.nrow();
   vec<kmppini::event<int, double> > eventV(
@@ -272,7 +272,7 @@ IntegerVector KMppIniSparseCpp(
     double seed, int maxCore, bool verbose)
 {
   std::size_t sed;
-  std::memcpy(&sed, &seed, sizeof(seed));
+  std::memcpy(&sed, &seed, sizeof(sed));
   int N = X.size();
   vec<kmppini::event<int, double> > eventV(N);
   for(int i = 0; i < N; ++i)

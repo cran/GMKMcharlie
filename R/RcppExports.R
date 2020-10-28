@@ -21,8 +21,8 @@ makeCovariancesWrapper <- function(X, K) {
     .Call(`_GMKMcharlie_makeCovariancesWrapper`, X, K)
 }
 
-paraGmm <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore) {
-    .Call(`_GMKMcharlie_paraGmm`, X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore)
+paraGmm <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock) {
+    .Call(`_GMKMcharlie_paraGmm`, X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock)
 }
 
 paraGmmCW <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore) {

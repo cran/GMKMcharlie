@@ -7,6 +7,7 @@
 template<typename indtype, typename valtype>
 struct G
 {
+  bool updateAlpha, updateMean, updateSigma;
   // valtype piConstMul;
   valtype alpha; // Weight on this kernel.
   valtype sqrtOfDet; // Square root of the covariance matrix's determinant.
@@ -25,6 +26,9 @@ struct G
 
   inline void shallowCopy(G &x) // Copy parameters of the kernel but not the densities it projects.
   {
+    updateAlpha = x.updateAlpha;
+    updateMean = x.updateMean;
+    updateSigma = x.updateSigma;
     alpha = x.alpha;
     sqrtOfDet = x.sqrtOfDet;
     mu = x.mu;

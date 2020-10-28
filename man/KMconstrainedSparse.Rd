@@ -65,6 +65,9 @@ A boolean value. \code{TRUE} prints progress.
 \details{
 See details for \code{KMconstrained()} and \code{KM()}
 }
+\note{
+Although rarely happens, divergence of K-means with non-Euclidean distance \code{minkP != 2} measure is still a theoretical possibility. Bounding the cluster weights / sizes increases the chance of divergence.
+}
 \value{
 A list of size \code{K}, the number of clusters. Each element is a list of 3 vectors:
 \item{centroid }{a numeric vector of size \code{d}.}
