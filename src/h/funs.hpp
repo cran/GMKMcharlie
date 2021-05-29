@@ -63,16 +63,14 @@ using namespace RcppParallel;
 
 
 template<typename indtype, typename valtype>
-inline bool cholTriSelf(valtype *M, indtype d)
+inline void cholTriSelf(valtype *M, indtype d)
 {
-  if(*M <= 0) return 0;
   valtype *&CL = M;
   *CL = std::sqrt(*M);
 
 
   valtype *currentRowBegin = M + 1;
   indtype rowLen = 2;
-  valtype maxDiag = *M, minDiag = maxDiag;
 
 
   while(rowLen <= d)
@@ -96,9 +94,6 @@ inline bool cholTriSelf(valtype *M, indtype d)
     // Reach the diagnol
     valtype tmp = currentRowBegin[i] - std::inner_product(
       priorRowBegin, priorRowBegin + priorRowLen - 1, currentRowBegin, 0.0);
-    if(tmp <= 0) return 0;
-    maxDiag = std::max<valtype> (tmp, maxDiag);
-    minDiag = std::min<valtype> (tmp, minDiag);
     currentRowBegin[i] = std::sqrt(tmp);
 
 
@@ -106,33 +101,17 @@ inline bool cholTriSelf(valtype *M, indtype d)
     currentRowBegin += rowLen;
     ++rowLen;
   }
-
-
-  // Prevent degenerate kernels in general.
-  // Ensure the min:max standard deviation among all directions does not fall below threshold.
-  double threshold = std::numeric_limits<valtype>::epsilon() *
-    std::numeric_limits<valtype>::epsilon(); // Should be calculated during compile time.
-  if(minDiag < maxDiag * threshold) return 0;
-  return 1;
 }
 
 
 
 
 template<typename indtype, typename valtype>
-inline bool G<indtype, valtype>::computeCholUandSqrtOfDet(vec<valtype> &sigma)
-  // sigma is triangular, half of the full covariance matrix
+inline void G<indtype, valtype>::computeCholUandSqrtOfDet(vec<valtype> &sigma)
+  // sigma is triangular, half of the full covariance matrix.
 {
   indtype d = mu.size();
-  bool cholSuccess = cholTriSelf(&sigma.front(), d);
-
-
-  if(!cholSuccess)
-  {
-    sqrtOfDet = 0;
-    alpha = 0;
-    return 0;
-  }
+  cholTriSelf(&sigma.front(), d);
 
 
   if(&sigma != &cholU) std::swap(sigma, cholU);
@@ -145,19 +124,16 @@ inline bool G<indtype, valtype>::computeCholUandSqrtOfDet(vec<valtype> &sigma)
     offset += rowLen;
     sqrtOfDet *= begin[offset - 1];
   }
-
-
-  return 1;
 }
 
 
 
 
 template<typename indtype, typename valtype>
-inline bool G<indtype, valtype>::computeCholUandSqrtOfDet(valtype *sigma)
-  // sigma is triangular, half of the full covariance matrix
+inline void G<indtype, valtype>::computeCholUandSqrtOfDet(valtype *sigma)
+  // sigma is triangular, half of the full covariance matrix.
   // Swap sigma and cholU first
-  // After this function, sigma contains the old covariance matrix
+  // After this function, sigma contains the old covariance matrix.
 {
   for(indtype i = 0, iend = cholU.size(); i < iend; ++i)
   {
@@ -166,13 +142,7 @@ inline bool G<indtype, valtype>::computeCholUandSqrtOfDet(valtype *sigma)
 
 
   indtype d = mu.size();
-  bool cholSuccess = cholTriSelf(&cholU[0], d);
-  if(!cholSuccess)
-  {
-    sqrtOfDet = 0.0;
-    alpha = 0.0;
-    return false;
-  }
+  cholTriSelf(&cholU[0], d);
 
 
   sqrtOfDet = 1;
@@ -182,9 +152,53 @@ inline bool G<indtype, valtype>::computeCholUandSqrtOfDet(valtype *sigma)
     offset += rowLen;
     sqrtOfDet *= begin[offset - 1];
   }
+}
 
 
-  return 1;
+
+
+template<typename indtype, typename valtype>
+inline valtype logSqrtOfDetCholU(valtype *cholU, indtype dim)
+{
+  valtype logSqrtOfDet = 0;
+  valtype negInf = std::numeric_limits<valtype>::lowest();
+  for(indtype rowLen = 1, offset = 0; rowLen <= dim; ++rowLen)
+  {
+    offset += rowLen;
+    valtype val = cholU[offset - 1];
+    if(val <= 0) return(negInf);
+    logSqrtOfDet += std::log(val);
+  }
+  return logSqrtOfDet;
+}
+
+
+
+
+template<typename indtype, typename valtype>
+inline void G<indtype, valtype>::computeCholUandLogSqrtOfDet(vec<valtype> &sigma)
+  // sigma is triangular, half of the full covariance matrix.
+{
+  indtype d = mu.size();
+  cholTriSelf(&sigma.front(), d);
+  if(&sigma != &cholU) std::swap(sigma, cholU);
+  logSqrtOfDet = logSqrtOfDetCholU(&cholU[0], d);
+}
+
+
+
+
+template<typename indtype, typename valtype>
+inline void G<indtype, valtype>::computeCholUandLogSqrtOfDet(valtype *sigma)
+  // sigma is triangular, half of the full covariance matrix.
+  // Swap sigma and cholU first
+  // After this function, sigma contains the old covariance matrix.
+{
+  for(indtype i = 0, iend = cholU.size(); i < iend; ++i)
+    std::swap(sigma[i], cholU[i]);
+  indtype d = mu.size();
+  cholTriSelf(&cholU[0], d);
+  logSqrtOfDet = logSqrtOfDetCholU(&cholU[0], d);
 }
 
 
@@ -270,6 +284,7 @@ inline void swapG(G<indtype, valtype> &x, G<indtype, valtype> &y)
   std::swap(x.updateSigma, y.updateSigma);
   std::swap(x.alpha, y.alpha);
   std::swap(x.sqrtOfDet, y.sqrtOfDet);
+  std::swap(x.logSqrtOfDet, y.logSqrtOfDet);
   std::swap(x.mu, y.mu);
   std::swap(x.cholU, y.cholU);
   std::swap(x.ptr, y.ptr);
@@ -282,11 +297,31 @@ inline void swapG(G<indtype, valtype> &x, G<indtype, valtype> &y)
 template<typename indtype, typename valtype>
 inline void annihilateGinVec(vec<G<indtype, valtype> > &gv, valtype annihilationEPS)
 {
+  if(annihilationEPS <= 0) return;
   vec<G<indtype, valtype> > rst(gv.size());
   indtype j = 0;
   for(indtype i = 0, iend = gv.size(); i < iend; ++i)
   {
     if(gv[i].alpha > annihilationEPS)
+    {
+      swapG(gv[i], rst[j]);
+      ++j;
+    }
+  }
+  rst.resize(j);
+  std::swap(gv, rst);
+}
+
+
+template<typename indtype, typename valtype>
+inline void earseCollapsedGau(vec<G<indtype, valtype> > &gv)
+{
+  vec<G<indtype, valtype> > rst(gv.size());
+  indtype j = 0;
+  valtype negInf = std::numeric_limits<valtype>::lowest();
+  for(indtype i = 0, iend = gv.size(); i < iend; ++i)
+  {
+    if(gv[i].logSqrtOfDet != negInf)
     {
       swapG(gv[i], rst[j]);
       ++j;
@@ -380,8 +415,6 @@ struct cmptDensity: public Worker
 };
 
 
-
-
 template<typename indtype, typename valtype>
 struct cmptRowSum: public Worker
 {
@@ -425,6 +458,116 @@ struct cmptRowSum: public Worker
       for(indtype j = 0; j < Xsize; ++j)
         rowSum[j] += x[j];
     }
+  }
+};
+
+
+template<typename indtype, typename valtype>
+struct cmptLogDensity: public Worker
+{
+  indtype d;
+  indtype Xsize;
+  indtype gmodelSize;
+  valtype logPi_;
+  valtype *X;
+  G<indtype, valtype> *gmodel;
+  vec<valtype> *tmpCtnr;
+  dynamicTasking *dT;
+
+
+  void operator() (std::size_t st, std::size_t end)
+  {
+    for(;;)
+    {
+      std::size_t objI = 0;
+      if(!dT->nextTaskID(objI, 512)) break;
+      for(std::size_t I = objI,
+          Iend = std::min<std::size_t> (dT->NofAtom, I + 512);
+          I < Iend; ++I)
+      {
+        std::size_t whichModel = I / Xsize, offset = I % Xsize;
+        G<indtype, valtype> &gaussian = gmodel[whichModel];
+        gaussian.ptr[offset] = gaussian.logdensityEval(X + offset * d, d, &tmpCtnr[st][0], logPi_);
+      }
+    }
+  }
+
+
+  cmptLogDensity(indtype d, indtype Xsize, indtype gmodelSize, valtype *X,
+                 G<indtype, valtype> *gmodel, indtype NofCPU):
+    d(d), Xsize(Xsize), gmodelSize(gmodelSize), X(X), gmodel(gmodel)
+  {
+    // pi_ = std::pow(2.0 * M_PI, d * (-0.5));
+    logPi_ = std::log(2.0 * M_PI) * d * (-0.5);
+    vec<vec<valtype> > tmpContainer(NofCPU, vec<valtype> (d, 0));
+    tmpCtnr = &tmpContainer[0];
+    dynamicTasking dt(NofCPU, std::size_t(gmodelSize) * Xsize);
+    dT = &dt;
+    parallelFor(0, NofCPU, *this);
+  }
+};
+
+
+
+
+template<typename indtype, typename valtype>
+struct cmptDensityGivenLogDenistyAndRowSum: public Worker
+{
+  indtype gmodelSize;
+  G<indtype, valtype> *gmodel;
+  valtype *rowSum, *logRowMax;
+  dynamicTasking *dT;
+
+
+  void vecMax(valtype *max, valtype *x, indtype size)
+  {
+    for(indtype i = 0; i < size; ++i)
+      max[i] = std::max(max[i], x[i]);
+  }
+
+
+  void compden(indtype rowSt, indtype rowEnd)
+  {
+    std::copy(&gmodel[0].ptr[rowSt], &gmodel[0].ptr[rowEnd], logRowMax + rowSt);
+    for(indtype i = 1; i < gmodelSize; ++i)
+      vecMax(logRowMax + rowSt, &gmodel[i].ptr[rowSt], rowEnd - rowSt);
+    std::fill(rowSum + rowSt, rowSum + rowEnd, 0);
+    for(indtype i = 0; i < gmodelSize; ++i)
+    {
+      for(indtype j = rowSt; j < rowEnd; ++j)
+      {
+        gmodel[i].ptr[j] = std::exp(gmodel[i].ptr[j] - logRowMax[j]);
+        rowSum[j] += gmodel[i].ptr[j];
+      }
+    }
+    // Rcout << " ================================== \n";
+    // Rcout << *std::min_element(logRowMax + rowSt, logRowMax + rowEnd) << ", ";
+    // Rcout << *std::max_element(logRowMax + rowSt, logRowMax + rowEnd) << ", ";
+    // Rcout << *std::min_element(rowSum + rowSt, rowSum + rowEnd) << ", ";
+    // Rcout << *std::max_element(rowSum + rowSt, rowSum + rowEnd) << ", ";
+    // Rcout << "\n================================== \n";
+  }
+
+
+  void operator() (std::size_t st, std::size_t end)
+  {
+    for(;;)
+    {
+      std::size_t objI = 0;
+      if(!dT->nextTaskID(objI, 64)) break;
+      compden(objI, std::min<std::size_t> (dT->NofAtom, objI + 64));
+    }
+  }
+
+
+  cmptDensityGivenLogDenistyAndRowSum(
+    G<indtype, valtype> *gmodel, indtype Ngau,
+    valtype *rowSum, valtype *logRowMax,
+    indtype Ndata, indtype maxCore):
+    gmodelSize(Ngau), gmodel(gmodel), rowSum(rowSum), logRowMax(logRowMax)
+  {
+    dynamicTasking dt(maxCore, Ndata); dT = &dt;
+    parallelFor(0, maxCore, *this);
   }
 };
 
@@ -539,10 +682,10 @@ template<typename indtype, typename valtype>
 inline void normalizeAlpha(vec<G<indtype, valtype> > &gv)
 {
   valtype alphaS = 0;
-  for(indtype i = 0,iend = gv.size(); i < iend; ++i)
-    alphaS += gv[i].alpha;
-  for(indtype i = 0, iend = gv.size(); i < iend; ++i)
-    gv[i].alpha /= alphaS;
+  indtype gvsize = gv.size();
+  for(indtype i = 0; i < gvsize; ++i) alphaS += gv[i].alpha;
+  alphaS = 1.0 / alphaS;
+  for(indtype i = 0; i < gvsize; ++i) gv[i].alpha *= alphaS;
 }
 
 
@@ -566,9 +709,9 @@ struct nextSelection: public Worker
     for(;;)
     {
       std::size_t objI = 0;
-      if(!dT->nextTaskID(objI, 10)) break;
+      if(!dT->nextTaskID(objI, 16)) break;
       {
-        for(indtype i = objI, iend = std::min<indtype> (i + 10, dT->NofAtom);
+        for(indtype i = objI, iend = std::min<indtype> (i + 16, dT->NofAtom);
             i < iend; ++i)
         {
           double dist = 0, *xi = x + std::size_t(i) * d;
@@ -677,6 +820,8 @@ inline NumericMatrix makeCovariances01(NumericMatrix X, int K)
 }
 
 
+
+
 inline NumericMatrix makeCovariances02(NumericMatrix X, int K)
 {
   int d = X.nrow(), N = X.ncol();
@@ -706,6 +851,8 @@ inline NumericMatrix makeCovariances02(NumericMatrix X, int K)
   }
   return rst;
 }
+
+
 
 
 

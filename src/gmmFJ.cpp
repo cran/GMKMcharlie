@@ -401,10 +401,17 @@ List paraGmmFJfullInitial(
   double minLoss = std::numeric_limits<double>::max();
   {
     double *xw = &xweight[0];
+
+
     cmptDensity<int, double> (d, Xsize, Gvec.size(), X, &Gvec[0], Nthreads);
     vec<double> auxCntr;
     cmptRowSum<int, double> (Xsize, Gvec.size(), &Gvec.front(),
                              &rowSum[0], auxCntr, Nthreads);
+
+
+    // cmptLogDensity<int, double> (d, Xsize, Gvec.size(), &dat[0], &Gvec.front(), Nthreads);
+    // cmptDensityGivenLogDenistyAndRowSum<int, double> (
+    //     &Gvec.front(), Gvec.size(), &rowSum[0], Xsize, Nthreads);
 
 
     // double priorLoss = std::numeric_limits<double>::max() * 0.5;
@@ -785,6 +792,7 @@ List paraGmmFJ(
     X, alpha, mu, sigma, Xw, maxCore, maxIter,
     Gmin, convergenceEPS, alphaEPS, tlimit, verbose);
 }
+
 
 
 

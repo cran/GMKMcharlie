@@ -34,17 +34,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// testGdensity
-double testGdensity(NumericVector x, NumericVector mu, NumericVector sigma, double alpha);
-RcppExport SEXP _GMKMcharlie_testGdensity(SEXP xSEXP, SEXP muSEXP, SEXP sigmaSEXP, SEXP alphaSEXP) {
+// testGlogdensity
+NumericVector testGlogdensity(NumericMatrix X, NumericVector mu, NumericVector sigma, double alpha);
+RcppExport SEXP _GMKMcharlie_testGlogdensity(SEXP XSEXP, SEXP muSEXP, SEXP sigmaSEXP, SEXP alphaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type X(XSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type sigma(sigmaSEXP);
     Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
-    rcpp_result_gen = Rcpp::wrap(testGdensity(x, mu, sigma, alpha));
+    rcpp_result_gen = Rcpp::wrap(testGlogdensity(X, mu, sigma, alpha));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -74,8 +74,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // paraGmm
-List paraGmm(NumericMatrix X, NumericVector Xw, int G, NumericVector alpha, NumericMatrix mu, NumericMatrix sigma, double eigenRatioLim, double convergenceEPS, double alphaEPS, int maxIter, double tlimit, int verbose, int maxCore, LogicalVector updateAlpha, LogicalVector updateMean, LogicalVector updateSigma, bool paraConvergeMaxErr, bool loglikehoodConverge, int loglikehoodConvergeBlock);
-RcppExport SEXP _GMKMcharlie_paraGmm(SEXP XSEXP, SEXP XwSEXP, SEXP GSEXP, SEXP alphaSEXP, SEXP muSEXP, SEXP sigmaSEXP, SEXP eigenRatioLimSEXP, SEXP convergenceEPSSEXP, SEXP alphaEPSSEXP, SEXP maxIterSEXP, SEXP tlimitSEXP, SEXP verboseSEXP, SEXP maxCoreSEXP, SEXP updateAlphaSEXP, SEXP updateMeanSEXP, SEXP updateSigmaSEXP, SEXP paraConvergeMaxErrSEXP, SEXP loglikehoodConvergeSEXP, SEXP loglikehoodConvergeBlockSEXP) {
+List paraGmm(NumericMatrix X, NumericVector Xw, int G, NumericVector alpha, NumericMatrix mu, NumericMatrix sigma, double eigenRatioLim, double convergenceEPS, double alphaEPS, int maxIter, double tlimit, int verbose, int maxCore, LogicalVector updateAlpha, LogicalVector updateMean, LogicalVector updateSigma, int convergenceTail, double embedNoise, bool checkInitialization);
+RcppExport SEXP _GMKMcharlie_paraGmm(SEXP XSEXP, SEXP XwSEXP, SEXP GSEXP, SEXP alphaSEXP, SEXP muSEXP, SEXP sigmaSEXP, SEXP eigenRatioLimSEXP, SEXP convergenceEPSSEXP, SEXP alphaEPSSEXP, SEXP maxIterSEXP, SEXP tlimitSEXP, SEXP verboseSEXP, SEXP maxCoreSEXP, SEXP updateAlphaSEXP, SEXP updateMeanSEXP, SEXP updateSigmaSEXP, SEXP convergenceTailSEXP, SEXP embedNoiseSEXP, SEXP checkInitializationSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -95,10 +95,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< LogicalVector >::type updateAlpha(updateAlphaSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type updateMean(updateMeanSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type updateSigma(updateSigmaSEXP);
-    Rcpp::traits::input_parameter< bool >::type paraConvergeMaxErr(paraConvergeMaxErrSEXP);
-    Rcpp::traits::input_parameter< bool >::type loglikehoodConverge(loglikehoodConvergeSEXP);
-    Rcpp::traits::input_parameter< int >::type loglikehoodConvergeBlock(loglikehoodConvergeBlockSEXP);
-    rcpp_result_gen = Rcpp::wrap(paraGmm(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock));
+    Rcpp::traits::input_parameter< int >::type convergenceTail(convergenceTailSEXP);
+    Rcpp::traits::input_parameter< double >::type embedNoise(embedNoiseSEXP);
+    Rcpp::traits::input_parameter< bool >::type checkInitialization(checkInitializationSEXP);
+    rcpp_result_gen = Rcpp::wrap(paraGmm(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, convergenceTail, embedNoise, checkInitialization));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -268,7 +268,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_GMKMcharlie_d2s", (DL_FUNC) &_GMKMcharlie_d2s, 4},
     {"_GMKMcharlie_s2d", (DL_FUNC) &_GMKMcharlie_s2d, 4},
-    {"_GMKMcharlie_testGdensity", (DL_FUNC) &_GMKMcharlie_testGdensity, 4},
+    {"_GMKMcharlie_testGlogdensity", (DL_FUNC) &_GMKMcharlie_testGlogdensity, 4},
     {"_GMKMcharlie_findSpreadedMeanWrapper", (DL_FUNC) &_GMKMcharlie_findSpreadedMeanWrapper, 3},
     {"_GMKMcharlie_makeCovariancesWrapper", (DL_FUNC) &_GMKMcharlie_makeCovariancesWrapper, 2},
     {"_GMKMcharlie_paraGmm", (DL_FUNC) &_GMKMcharlie_paraGmm, 19},

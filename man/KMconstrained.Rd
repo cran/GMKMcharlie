@@ -76,7 +76,7 @@ Although rarely happens, divergence of K-means with non-Euclidean distance \code
 }
 
 \examples{
-N = 5000L # Number of points.
+N = 3000L # Number of points.
 d = 500L # Dimensionality.
 K = 50L # Number of clusters.
 dat = matrix(rnorm(N * d) + runif(N * d), nrow = d)

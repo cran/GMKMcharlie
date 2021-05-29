@@ -9,8 +9,8 @@ s2d <- function(X, d, zero = 0, verbose = TRUE) {
     .Call(`_GMKMcharlie_s2d`, X, d, zero, verbose)
 }
 
-testGdensity <- function(x, mu, sigma, alpha = 1) {
-    .Call(`_GMKMcharlie_testGdensity`, x, mu, sigma, alpha)
+testGlogdensity <- function(X, mu, sigma, alpha = 1) {
+    .Call(`_GMKMcharlie_testGlogdensity`, X, mu, sigma, alpha)
 }
 
 findSpreadedMeanWrapper <- function(X, K, maxCore = 7L) {
@@ -21,8 +21,8 @@ makeCovariancesWrapper <- function(X, K) {
     .Call(`_GMKMcharlie_makeCovariancesWrapper`, X, K)
 }
 
-paraGmm <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock) {
-    .Call(`_GMKMcharlie_paraGmm`, X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, paraConvergeMaxErr, loglikehoodConverge, loglikehoodConvergeBlock)
+paraGmm <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, convergenceTail, embedNoise, checkInitialization) {
+    .Call(`_GMKMcharlie_paraGmm`, X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore, updateAlpha, updateMean, updateSigma, convergenceTail, embedNoise, checkInitialization)
 }
 
 paraGmmCW <- function(X, Xw, G, alpha, mu, sigma, eigenRatioLim, convergenceEPS, alphaEPS, maxIter, tlimit, verbose, maxCore) {

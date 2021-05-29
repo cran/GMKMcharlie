@@ -16,8 +16,10 @@ GM(
   sigma = matrix(ncol = 0, nrow = 0),
   G = 5L,
   convergenceEPS = 1e-05,
+  convergenceTail = 10,
   alphaEPS = 0,
   eigenRatioLim = Inf,
+  embedNoise = 1e-6,
   maxIter = 1000L,
   maxCore = 7L,
   tlimit = 3600,
@@ -25,9 +27,11 @@ GM(
   updateAlpha = TRUE,
   updateMean = TRUE,
   updateSigma = TRUE,
-  paraConvergeMaxErr = FALSE,
-  loglikehoodConverge = FALSE,
-  loglikehoodConvergeBlock = 10
+  checkInitialization = FALSE,
+  KmeansFirst = TRUE,
+  KmeansPPfirst = FALSE,
+  KmeansRandomSeed = NULL,
+  friendlyOutput = TRUE
   )
 }
 %- maybe also 'usage' for other objects documented here.
@@ -45,7 +49,7 @@ A numeric vector of size \code{K}, the number of Gaussian kernels in the mixture
 A \code{d x K} numeric matrix. \code{mu[, i]} is the initial mean for the \code{i}th Gaussian kernel. Default empty.
 }
   \item{sigma}{
-A \code{d^2 x K} numeric matrix. Each column represents a flattened \code{d x d} initial covariance matrix of the \code{i}th Gaussian kernel. In R, \code{as.numeric(aMatrix)} gives the flattened version of \code{aMatrix}. Covariance matrix of each Gaussian kernel MUST be positive-definite. Default empty.
+Either a list of \code{d x d} matrices, or a \code{d^2 x K} numeric matrix. For the latter, each column represents a flattened \code{d x d} initial covariance matrix of the \code{i}th Gaussian kernel. In R, \code{as.numeric(aMatrix)} gives the flattened version of \code{aMatrix}. Covariance matrix of each Gaussian kernel MUST be positive-definite. Default empty.
 }
   \item{G}{
 An integer. If at least one of the parameters \code{alpha}, \code{mu}, \code{sigma} are empty, the program will initialize \code{G} Gaussian kernels via K-means++ deterministic initialization. See \code{KMppIni()}. Otherwise \code{G} is ignored. Default 5.
@@ -53,11 +57,17 @@ An integer. If at least one of the parameters \code{alpha}, \code{mu}, \code{sig
   \item{convergenceEPS}{
 A numeric value. If the average change of all parameters in the mixture model is below \code{convergenceEPS} relative to those in the pervious iteration, the program ends. Checking convergence this way is faster than recomputing the log-likelihood every iteration. Default 1e-5.
 }
+  \item{convergenceTail}{
+If every one of the last \code{convergenceTail} iteration produces less than a relative increase of \code{convergenceEPS} in log-likelihood, stop.
+}
   \item{alphaEPS}{
 A numeric value. During training, if any Gaussian kernel's weight is no greater than \code{alphaEPS}, the kernel is deleted. Default 0.
 }
   \item{eigenRatioLim}{
 A numeric value. During training, if any Gaussian kernel's max:min eigen value ratio exceeds \code{eigenRatioLim}, the kernel is treated as degenerate and deleted. Thresholding eigen ratios is in the interest of minimizing the effect of degenerate kernels in an early stage. Default \code{Inf}.
+}
+  \item{embedNoise}{
+A small constant added to the diagonal entries of all covariance matrices. This may prevent covariance matrices collapsing prematurely. A suggested value is 1e-6. Covariance degeneration is detected during Cholesky decomposition, and will lead the trainer to remove the corresponding mixture component. For high-dimensional problem, setting \code{embedNoise} to nonzero may pose the illusion of massive log-likelihood, all because one or more mixture components are so close to singular, which makes the densities around them extremely high.
 }
   \item{maxIter}{
 An integer, the maximal number of iterations.
@@ -80,19 +90,24 @@ A boolean value or a boolean vector. If a boolean value, \code{TRUE} implies mea
   \item{updateSigma}{
 A boolean value or a boolean vector. If a boolean value, \code{TRUE} implies covariances of all mixture components are subject to update, otherwise they should stay unchanged during training. If a boolean vector, its size should equal the number of mixture components. \code{updateSigma[i] == TRUE} implies the covariance of the \code{i}th component is subject to update.
 }
-  \item{paraConvergeMaxErr}{
-A boolean value. \code{TRUE} checks if the maximal absolute relative change of all parameters falls below \code{convergenceEPS}, and if so, stop training. Otherwise the program checks the average absolute relative change.
+  \item{checkInitialization}{
+Check if any of the input covariance matrices are singular.
 }
-  \item{loglikehoodConverge}{
-A boolean value. \code{TRUE} changes the convergence criterion to log-likelihood: if the log-likelihood's absolute relative changes in the last \code{loglikehoodConvergeBlock} iterations are all below \code{convergenceEPS}, stop training.
+  \item{KmeansFirst}{
+A boolean value. Run K-means clustering for finding means.
 }
-  \item{loglikehoodConvergeBlock}{
-An integer. Explained in \code{loglikehoodConverge}.
+\item{KmeansPPfirst}{
+A boolean value. Run stochastic K-means++ for K-means initialization.
 }
-
+\item{KmeansRandomSeed}{
+An integer or \code{NULL}, the random seed for K-means++.
+}
+\item{friendlyOutput}{
+\code{TRUE} returns covariance matrices in a list rather than a single matrix of columns of flattened covariance matrices.
+}
 }
 \details{
-An in-place Cholesky decomposition of covariance matrix is implemented for space and speed efficiency. Only the upper triangle of the Cholesky decomposition is memorized for each Gaussian kernel, and it is then applied to a forward substitution routine for fast computing Mahalanobis distances. Each of the three main steps in an iteration --- Gaussian density computation, parameter inference, parameter update --- is multithreaded and hand-scheduled using Intel TBB. Extensive efforts have been made over cache-friendliness and extra multithreading overheads such as memory allocation.
+An in-place Cholesky decomposition of covariance matrix is implemented for space and speed efficiency. Only the upper triangle of the Cholesky decomposition is memorized for each Gaussian kernel, and it is then applied to a forward substitution routine for fast Mahalanobis distances computation. Each of the three main steps in an iteration --- Gaussian density computation, parameter inference, parameter update --- is multithreaded and hand-scheduled using Intel TBB. Extensive efforts have been made over cache-friendliness and extra multithreading overheads such as memory allocation.
 
 If \code{eigenRatioLim} is finite, eigen decomposition employs routines in \code{RcppArmadillo}.
 }
@@ -122,7 +137,7 @@ A list of size 5:
 X = t(iris[1:4])
 # CRAN check only allows 2 threads at most. Increase `maxCore` for
 # acceleration.
-gmmRst = GMKMcharlie::GM(X, G = 3L, maxCore = 1L)
+gmmRst = GMKMcharlie::GM(X, G = 4L, maxCore = 1L, friendlyOutput = FALSE)
 str(gmmRst)
 
 
@@ -143,7 +158,8 @@ covars = matrix(rep(as.numeric(covar), G), nrow = d * d)
 
 # Models are sensitive to initialization.
 gmmRst2 = GMKMcharlie::GM(
-  X, alpha = alpha, mu = mu, sigma = covars, maxCore = 1L)
+  X, alpha = alpha, mu = mu, sigma = covars, maxCore = 1L,
+  friendlyOutput = FALSE)
 str(gmmRst2)
 
 
@@ -162,7 +178,8 @@ z = rosenbrock(x, y)
 
 X = rbind(x, y)
 Xw = z * (N / sum(z)) # Weights on observations should sum up to N.
-gmmFit = GMKMcharlie::GM(X, Xw = Xw, G = 5L, maxCore = 1L, verbose = FALSE)
+gmmFit = GMKMcharlie::GM(X, Xw = Xw, G = 5L, maxCore = 1L, verbose = FALSE,
+  friendlyOutput = FALSE)
 
 
 oldpar = par()$mfrow
@@ -187,14 +204,16 @@ z = t + rnorm(N) * 0.1
 X = rbind(x, y, z)
 d = 3L
 G = 10L
-gmmFit = GMKMcharlie::GM(X, G = G, maxCore = 1L, verbose = FALSE)
+gmmFit = GMKMcharlie::GM(X, G = G, maxCore = 1L, verbose = FALSE,
+  KmeansFirst = TRUE, KmeansPPfirst = TRUE, KmeansRandomSeed = 42,
+  friendlyOutput = TRUE)
 # Sample N points from the Gaussian mixture.
 ns = as.integer(round(N * gmmFit$alpha))
 sampledPoints = list()
-for(i in 1L : G)
+for(i in 1:G)
 {
   sampledPoints[[i]] = MASS::mvrnorm(
-    ns[i], mu = gmmFit$mu[, i], Sigma = matrix(gmmFit$sigma[, i], nrow = d))
+    ns[i], mu = gmmFit$mu[, i], Sigma = matrix(gmmFit$sigma[[i]], nrow = d))
 }
 sampledPoints =
   matrix(unlist(lapply(sampledPoints, function(x) t(x))), nrow = d)
@@ -236,7 +255,8 @@ gmmFit = GMKMcharlie::GM(X, alpha = alpha, mu = mu, sigma = s, G = G,
                          updateAlpha = updateAlpha,
                          updateMean = updateMean,
                          updateSigma = updateSigma,
-                         convergenceEPS = 1e-5, alphaEPS = 1e-8)
+                         convergenceEPS = 1e-5, alphaEPS = 1e-8,
+                         friendlyOutput = TRUE)
 }
 
 

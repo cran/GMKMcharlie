@@ -149,12 +149,18 @@ List paraGmmComponentWiseFullInitial(
   {
     double *xw = &xweight[0];
     int gaussianParaN = std::size_t(d + 1) * d / 2 + d + 1;
+
+
     cmptDensity<int, double> (d, Xsize, Gvec.size(), &dat[0], &Gvec.front(), Nthreads);
     {
       vec<double> auxCntr;
       cmptRowSum<int, double> (Xsize, Gvec.size(), &Gvec.front(), &rowSum[0], auxCntr, Nthreads);
-      // for(int i = 0; i < Xsize; ++i) Rcout << rowSum[i] << ", ";
     }
+
+
+    // cmptLogDensity<int, double> (d, Xsize, Gvec.size(), &dat[0], &Gvec.front(), Nthreads);
+    // cmptDensityGivenLogDenistyAndRowSum<int, double> (
+    //     &Gvec.front(), Gvec.size(), &rowSum[0], Xsize, Nthreads);
 
 
     double endTime = std::clock() + Nthreads * tlimit * CLOCKS_PER_SEC;
@@ -311,6 +317,7 @@ List paraGmmCW(
   //   double tlimit,
   //   int verbose
 }
+
 
 
 

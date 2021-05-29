@@ -101,3 +101,4 @@ NumericMatrix s2d(List X, int d, double zero = 0, bool verbose = true)
 
 
 
+

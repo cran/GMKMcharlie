@@ -8,3 +8,4 @@ inline double raisePower(double x, int p)
   return x;
 }
 
+

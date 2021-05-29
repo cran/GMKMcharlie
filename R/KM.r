@@ -26,6 +26,10 @@ KM <- function(
 }
 
 
+
+
+
+
 KMconstrained <- function(
   X,
   centroid,
